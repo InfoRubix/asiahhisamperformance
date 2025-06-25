@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance & Effectiveness Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .kpi-card {
+             background-color: white;
+             padding: 1.5rem;
+             border-radius: 0.5rem;
+             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+             display: flex;
+             flex-direction: column;
+             justify-content: center;
+             align-items: center;
+        }
+        .kpi-value {
+            font-size: 2.25rem;
+            line-height: 2.5rem;
+            font-weight: 700;
+            color: #4f46e5;
+        }
+        .kpi-label {
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-top: 0.25rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Performance & Effectiveness Dashboard</h1>
+            <p class="text-gray-600 mt-2">Analyze team and individual performance based on file data.</p>
+        </header>
+
+        <!-- Navigation -->
+        <div class="mb-8 flex justify-center bg-gray-100 p-1 rounded-lg border">
+            <button id="nav-overall" class="w-1/2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white shadow">Overall Performance</button>
+            <button id="nav-individual" class="w-1/2 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-transparent text-gray-600 hover:bg-gray-200">Individual Analysis</button>
+        </div>
+
+        <!-- Page Content -->
+        <main>
+            <!-- Page 1: Overall Dashboard -->
+            <div id="page-overall">
+                <div id="overall-loader" class="text-center py-16">
+                    <h3 class="text-xl font-semibold text-gray-700">Loading & Calculating Metrics...</h3>
+                </div>
+                <div id="overall-content" class="hidden">
+                    <!-- KPIs -->
+                    <section class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                        <div class="kpi-card">
+                            <span id="kpi-active-files" class="kpi-value">--</span>
+                            <span class="kpi-label">Total Active Files</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span id="kpi-closed-30-days" class="kpi-value">--</span>
+                            <span class="kpi-label">Files Closed (Last 30 Days)</span>
+                        </div>
+                         <div class="kpi-card">
+                            <span id="kpi-total-closed" class="kpi-value">--</span>
+                            <span class="kpi-label">Files Closed (All Time)</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span id="kpi-avg-close-time" class="kpi-value">--</span>
+                            <span class="kpi-label">Avg. Closing Time (Days)</span>
+                        </div>
+                    </section>
+                    <!-- Visualizations -->
+                    <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold mb-4">PIC Leaderboard (Active Files)</h3>
+                            <canvas id="leaderboard-chart"></canvas>
+                        </div>
+                         <div class="bg-white p-6 rounded-lg shadow-md">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold">Monthly Performance</h3>
+                                <div id="time-range-selector" class="flex space-x-1 p-1 bg-gray-100 rounded-full">
+                                    <button data-months="3" class="px-3 py-1 text-xs font-medium rounded-full transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Quarter</button>
+                                    <button data-months="6" class="px-3 py-1 text-xs font-medium rounded-full transition-colors bg-indigo-600 text-white shadow">6 Months</button>
+                                    <button data-months="12" class="px-3 py-1 text-xs font-medium rounded-full transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Year</button>
+                                </div>
+                            </div>
+                            <canvas id="trend-chart"></canvas>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Page 2: Individual Analysis -->
+            <div id="page-individual" class="hidden">
+                 <div id="individual-loader" class="text-center py-16">
+                     <h3 class="text-xl font-semibold text-gray-700">Loading Data...</h3>
+                 </div>
+                 <div id="individual-content" class="hidden">
+                    <!-- PIC Selector -->
+                    <div class="bg-white p-4 rounded-lg shadow-md mb-8">
+                        <label for="pic-select" class="block text-sm font-medium text-gray-700 mb-1">Select a PIC to Analyze</label>
+                        <select id="pic-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                           <option>Please select a PIC</option>
+                        </select>
+                    </div>
+
+                    <div id="individual-details" class="hidden">
+                         <!-- Individual KPIs -->
+                        <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div class="kpi-card">
+                                <span id="ind-kpi-active-files" class="kpi-value">--</span>
+                                <span class="kpi-label">Total Active Files</span>
+                            </div>
+                            <div class="kpi-card">
+                                <span id="ind-kpi-avg-close-time" class="kpi-value">--</span>
+                                <span class="kpi-label">Avg. Closing Time (Days)</span>
+                            </div>
+                            <div class="kpi-card">
+                                <span id="ind-kpi-total-closed" class="kpi-value">--</span>
+                                <span class="kpi-label">Total Files Closed (All Time)</span>
+                            </div>
+                        </section>
+                        <!-- File History Table -->
+                        <section class="bg-white p-6 rounded-lg shadow-md">
+                             <h3 class="text-lg font-semibold mb-4">File History</h3>
+                             <div class="overflow-x-auto">
+                                 <table class="min-w-full">
+                                     <thead>
+                                         <tr>
+                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">REF NUM</th>
+                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Date Open (DOF)</th>
+                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Date Close</th>
+                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Duration (Days)</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody id="file-history-body"></tbody>
+                                 </table>
+                             </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- CONFIG & GLOBAL STORE ---
+        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQhVOvcKbqZZuAuYE-FgLykZX5PRpeTMgJ1SpAAKAcZRRTb8Bt8cPOSQXj0EWL6iC7eQRofXmggke-T/pub?gid=0&single=true&output=csv';
+        let allFilesData = [];
+        let leaderboardChartInstance = null;
+        let trendChartInstance = null;
+
+        // --- DOM ELEMENTS ---
+        const navOverall = document.getElementById('nav-overall');
+        const navIndividual = document.getElementById('nav-individual');
+        const pageOverall = document.getElementById('page-overall');
+        const pageIndividual = document.getElementById('page-individual');
+        const picSelect = document.getElementById('pic-select');
+        const timeRangeSelector = document.getElementById('time-range-selector');
+        
+        // --- HELPER FUNCTIONS ---
+        function getVal(row, keys) {
+            for (const key of keys) {
+                if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+            }
+            return undefined;
+        }
+
+        function parseDate(dateStr) {
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            let parts = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+            if (parts) {
+                const day = parseInt(parts[1], 10);
+                const year = parseInt(parts[3], 10);
+                const monthStr = parts[2].toLowerCase();
+                const monthMap = {'jan':0,'feb':1,'mar':2,'apr':3,'may':4,'jun':5,'jul':6,'aug':7,'sep':8,'oct':9,'nov':10,'dec':11};
+                if (monthMap.hasOwnProperty(monthStr)) return new Date(year, monthMap[monthStr], day);
+            }
+            parts = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (parts) return new Date(parts[3], parts[2] - 1, parts[1]);
+            return null;
+        }
+
+        function dateDiffInDays(date1, date2) {
+            if (!date1 || !date2) return null;
+            const _MS_PER_DAY = 1000 * 60 * 60 * 24;
+            const utc1 = Date.UTC(date1.getFullYear(), date1.getMonth(), date1.getDate());
+            const utc2 = Date.UTC(date2.getFullYear(), date2.getMonth(), date2.getDate());
+            return Math.floor((utc2 - utc1) / _MS_PER_DAY);
+        }
+
+        // --- NAVIGATION LOGIC ---
+        function showPage(pageName) {
+            pageOverall.style.display = pageName === 'overall' ? 'block' : 'none';
+            pageIndividual.style.display = pageName === 'individual' ? 'block' : 'none';
+            
+            const navActiveClasses = ['bg-indigo-600', 'text-white', 'shadow'];
+            const navInactiveClasses = ['bg-transparent', 'text-gray-600', 'hover:bg-gray-200'];
+
+            if (pageName === 'overall') {
+                navOverall.classList.add(...navActiveClasses);
+                navOverall.classList.remove(...navInactiveClasses);
+                navIndividual.classList.add(...navInactiveClasses);
+                navIndividual.classList.remove(...navActiveClasses);
+            } else {
+                navIndividual.classList.add(...navActiveClasses);
+                navIndividual.classList.remove(...navInactiveClasses);
+                navOverall.classList.add(...navInactiveClasses);
+                navOverall.classList.remove(...navActiveClasses);
+            }
+        }
+        
+        // --- DATA PROCESSING & RENDERING ---
+        function processAndRenderData(rawData) {
+            const excludedPICs = ['SPA QHomes', 'Loan QHomes', 'Loan'];
+            allFilesData = rawData
+                .map(row => ({
+                    pic: getVal(row, ['PIC']),
+                    refNum: getVal(row, ['REF NUM']),
+                    dof: parseDate(getVal(row, ['DOF'])),
+                    dateClose: parseDate(getVal(row, ['DATE CLOSE'])),
+                    duration: dateDiffInDays(parseDate(getVal(row, ['DOF'])), parseDate(getVal(row, ['DATE CLOSE']))),
+                    stage: getVal(row, ['STAGES'])
+                }))
+                .filter(file => file.pic && !excludedPICs.includes(file.pic));
+            
+            renderOverallDashboard();
+            renderIndividualPage();
+
+            document.getElementById('overall-loader').style.display = 'none';
+            document.getElementById('overall-content').style.display = 'block';
+            document.getElementById('individual-loader').style.display = 'none';
+            document.getElementById('individual-content').style.display = 'block';
+        }
+
+        function updateTrendChart(monthsToShow) {
+            const startDate = new Date();
+            startDate.setMonth(startDate.getMonth() - monthsToShow);
+            
+            const monthlyData = allFilesData.reduce((acc, file) => {
+                const processEvent = (date, type) => {
+                    if (date && date >= startDate) {
+                        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                        if (!acc[monthKey]) acc[monthKey] = { opened: 0, closed: 0, date: new Date(date.getFullYear(), date.getMonth(), 1) };
+                        acc[monthKey][type]++;
+                    }
+                };
+                processEvent(file.dof, 'opened');
+                processEvent(file.dateClose, 'closed');
+                return acc;
+            }, {});
+
+            const sortedMonthlyData = Object.values(monthlyData).sort((a,b) => a.date - b.date);
+            
+            const trendLabels = sortedMonthlyData.map(d => d.date.toLocaleString('default', { month: 'short', year: '2-digit'}));
+            const openedData = sortedMonthlyData.map(d => d.opened);
+            const closedData = sortedMonthlyData.map(d => d.closed);
+
+            const trendCtx = document.getElementById('trend-chart').getContext('2d');
+            if (trendChartInstance) trendChartInstance.destroy();
+            trendChartInstance = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: trendLabels,
+                    datasets: [{
+                        label: 'Files Opened',
+                        data: openedData,
+                        borderColor: 'rgba(79, 70, 229, 1)',
+                        tension: 0.1
+                    }, {
+                        label: 'Files Closed',
+                        data: closedData,
+                        borderColor: 'rgba(34, 197, 94, 1)',
+                        tension: 0.1
+                    }]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function renderOverallDashboard() {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const activeFiles = allFilesData.filter(file => !file.dateClose);
+            const closedLast30Days = allFilesData.filter(file => file.dateClose && file.dateClose > thirtyDaysAgo);
+            const totalClosedFiles = allFilesData.filter(file => file.dateClose); // All closed files
+            const closedFilesWithDuration = allFilesData.filter(file => file.duration !== null && file.duration >= 0);
+            const totalDuration = closedFilesWithDuration.reduce((sum, file) => sum + file.duration, 0);
+            const avgCloseTime = closedFilesWithDuration.length > 0 ? (totalDuration / closedFilesWithDuration.length).toFixed(1) : 0;
+
+            document.getElementById('kpi-active-files').textContent = activeFiles.length;
+            document.getElementById('kpi-closed-30-days').textContent = closedLast30Days.length;
+            document.getElementById('kpi-total-closed').textContent = totalClosedFiles.length;
+            document.getElementById('kpi-avg-close-time').textContent = avgCloseTime;
+
+            const picCounts = activeFiles.reduce((acc, file) => {
+                acc[file.pic] = (acc[file.pic] || 0) + 1;
+                return acc;
+            }, {});
+            const sortedPics = Object.entries(picCounts).sort((a, b) => b[1] - a[1]);
+            const leaderboardCtx = document.getElementById('leaderboard-chart').getContext('2d');
+            if (leaderboardChartInstance) leaderboardChartInstance.destroy();
+            leaderboardChartInstance = new Chart(leaderboardCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedPics.map(p => p[0]),
+                    datasets: [{ label: 'Active Files', data: sortedPics.map(p => p[1]), backgroundColor: 'rgba(79, 70, 229, 0.8)' }]
+                },
+                options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } } }
+            });
+            
+            updateTrendChart(6); // Default to 6 months
+        }
+
+        function renderIndividualPage() {
+            const pics = [...new Set(allFilesData.map(file => file.pic))].sort();
+            picSelect.innerHTML = '<option value="">-- Select a PIC --</option>';
+            pics.forEach(pic => {
+                const option = document.createElement('option');
+                option.value = pic;
+                option.textContent = pic;
+                picSelect.appendChild(option);
+            });
+        }
+
+        function renderIndividualDetails(selectedPic) {
+            document.getElementById('individual-details').style.display = selectedPic ? 'block' : 'none';
+            if (!selectedPic) return;
+
+            const picFiles = allFilesData.filter(file => file.pic === selectedPic);
+            const activeFiles = picFiles.filter(file => !file.dateClose);
+            const closedFiles = picFiles.filter(file => file.duration !== null && file.duration >= 0);
+            const totalDuration = closedFiles.reduce((sum, file) => sum + file.duration, 0);
+            const avgCloseTime = closedFiles.length > 0 ? (totalDuration / closedFiles.length).toFixed(1) : 0;
+            
+            document.getElementById('ind-kpi-active-files').textContent = activeFiles.length;
+            document.getElementById('ind-kpi-avg-close-time').textContent = avgCloseTime;
+            document.getElementById('ind-kpi-total-closed').textContent = closedFiles.length;
+
+            document.getElementById('file-history-body').innerHTML = picFiles
+                .sort((a,b) => (b.dof || 0) - (a.dof || 0))
+                .map(file => `
+                <tr class="border-b">
+                    <td class="py-2 px-4 text-sm font-medium text-gray-800">${file.refNum || 'N/A'}</td>
+                    <td class="py-2 px-4 text-sm text-gray-600">${file.dof ? file.dof.toLocaleDateString() : 'N/A'}</td>
+                    <td class="py-2 px-4 text-sm text-gray-600">${file.dateClose ? file.dateClose.toLocaleDateString() : 'Active'}</td>
+                    <td class="py-2 px-4 text-sm font-bold text-indigo-600">${file.duration !== null ? file.duration : '--'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            navOverall.addEventListener('click', () => showPage('overall'));
+            navIndividual.addEventListener('click', () => showPage('individual'));
+            picSelect.addEventListener('change', (e) => renderIndividualDetails(e.target.value));
+            
+            timeRangeSelector.addEventListener('click', (e) => {
+                const clickedButton = e.target.closest('button');
+                if(clickedButton) {
+                    const activeClasses = ['bg-indigo-600', 'text-white', 'shadow'];
+                    const inactiveClasses = ['bg-gray-200', 'text-gray-700', 'hover:bg-gray-300'];
+                    
+                    timeRangeSelector.querySelectorAll('button').forEach(btn => {
+                        btn.classList.remove(...activeClasses);
+                        btn.classList.add(...inactiveClasses);
+                    });
+
+                    clickedButton.classList.add(...activeClasses);
+                    clickedButton.classList.remove(...inactiveClasses);
+                    
+                    const months = parseInt(clickedButton.dataset.months, 10);
+                    updateTrendChart(months);
+                }
+            });
+
+            Papa.parse(GOOGLE_SHEET_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.errors.length > 0 || results.data.length === 0) {
+                       document.getElementById('overall-loader').textContent = "Error: Could not read data from Google Sheet.";
+                       document.getElementById('individual-loader').textContent = "Error: Could not read data from Google Sheet.";
+                       console.error("CSV Parsing Errors:", results.errors);
+                       return;
+                    }
+                    processAndRenderData(results.data);
+                },
+                error: function(err) {
+                     document.getElementById('overall-loader').textContent = "Error: Could not fetch data from URL.";
+                     document.getElementById('individual-loader').textContent = "Error: Could not fetch data from URL.";
+                    console.error("Fetch Error:", err);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
