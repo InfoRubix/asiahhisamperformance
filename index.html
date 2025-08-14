@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Performance & Effectiveness Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Added Chart.js Datalabels plugin for percentages -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <link href="https://googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -22,6 +23,11 @@
              flex-direction: column;
              justify-content: center;
              align-items: center;
+             transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
         }
         .kpi-value {
             font-size: 2.25rem;
@@ -37,6 +43,25 @@
             margin-top: 0.25rem;
             text-align: center;
         }
+        /* Refresh button pulsing animation */
+        .refresh-pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+        .modal {
+            display: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal.active {
+            display: flex;
+        }
     </style>
 </head>
 <body class="text-gray-800">
@@ -44,8 +69,18 @@
     <div class="container mx-auto p-4 md:p-8">
         <!-- Header -->
         <header class="mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Performance & Effectiveness Dashboard</h1>
-            <p class="text-gray-600 mt-2">Analyze team and individual performance based on file data.</p>
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Performance & Effectiveness Dashboard</h1>
+                    <p class="text-gray-600 mt-2">Analyze team and individual performance based on file data.</p>
+                </div>
+                <div class="text-right">
+                    <button id="refresh-btn" class="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Refresh Data
+                    </button>
+                    <p id="last-updated" class="text-xs text-gray-500 mt-1">Last updated: --</p>
+                </div>
+            </div>
         </header>
 
         <!-- Navigation -->
@@ -63,26 +98,24 @@
                 </div>
                 <div id="overall-content" class="hidden">
                     <!-- KPIs -->
-                    <section class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-                        <div class="kpi-card">
-                            <span id="kpi-active-files" class="kpi-value">--</span>
-                            <span class="kpi-label">Total Active Files</span>
+                    <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
+                        <!-- Dynamic Active Files by Year will be inserted here -->
+                        <div id="active-files-by-year-container" class="contents"></div>
+                         <div class="kpi-card cursor-pointer" data-filter-type="closed">
+                            <span id="kpi-total-closed" class="kpi-value pointer-events-none">--</span>
+                            <span class="kpi-label pointer-events-none">Total Closed Files</span>
                         </div>
-                        <div class="kpi-card">
-                            <span id="kpi-closed-30-days" class="kpi-value">--</span>
-                            <span class="kpi-label">Files Closed (Last 30 Days)</span>
+                        <div class="kpi-card cursor-pointer" data-filter-type="kiv">
+                            <span id="kpi-total-kiv" class="kpi-value pointer-events-none">--</span>
+                            <span class="kpi-label pointer-events-none">Total KIV Files</span>
                         </div>
-                         <div class="kpi-card">
-                            <span id="kpi-total-closed" class="kpi-value">--</span>
-                            <span class="kpi-label">Files Closed (All Time)</span>
-                        </div>
-                        <div class="kpi-card">
-                            <span id="kpi-avg-close-time" class="kpi-value">--</span>
-                            <span class="kpi-label">Avg. Closing Time (Days)</span>
+                        <div class="kpi-card cursor-pointer" data-filter-type="canceled">
+                            <span id="kpi-total-canceled" class="kpi-value pointer-events-none">--</span>
+                            <span class="kpi-label pointer-events-none">Total Canceled Files</span>
                         </div>
                     </section>
                     <!-- Visualizations -->
-                    <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                         <div class="bg-white p-6 rounded-lg shadow-md">
                             <h3 class="text-lg font-semibold mb-4">PIC Leaderboard (Active Files)</h3>
                             <canvas id="leaderboard-chart"></canvas>
@@ -97,6 +130,13 @@
                                 </div>
                             </div>
                             <canvas id="trend-chart"></canvas>
+                        </div>
+                    </section>
+                    <!-- Pie Charts Section -->
+                    <section id="pie-charts-section" class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-lg font-semibold mb-4">Annual File Status Breakdown</h3>
+                        <div id="pie-charts-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            <!-- Pie charts will be dynamically inserted here -->
                         </div>
                     </section>
                 </div>
@@ -118,18 +158,22 @@
 
                     <div id="individual-details" class="hidden">
                          <!-- Individual KPIs -->
-                        <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <section class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
                             <div class="kpi-card">
                                 <span id="ind-kpi-active-files" class="kpi-value">--</span>
                                 <span class="kpi-label">Total Active Files</span>
                             </div>
                             <div class="kpi-card">
-                                <span id="ind-kpi-avg-close-time" class="kpi-value">--</span>
-                                <span class="kpi-label">Avg. Closing Time (Days)</span>
+                                <span id="ind-kpi-total-closed" class="kpi-value">--</span>
+                                <span class="kpi-label">Total Closed</span>
                             </div>
                             <div class="kpi-card">
-                                <span id="ind-kpi-total-closed" class="kpi-value">--</span>
-                                <span class="kpi-label">Total Files Closed (All Time)</span>
+                                <span id="ind-kpi-total-kiv" class="kpi-value">--</span>
+                                <span class="kpi-label">Total KIV</span>
+                            </div>
+                            <div class="kpi-card">
+                                <span id="ind-kpi-total-canceled" class="kpi-value">--</span>
+                                <span class="kpi-label">Total Canceled</span>
                             </div>
                         </section>
                         <!-- File History Table -->
@@ -141,8 +185,7 @@
                                          <tr>
                                              <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">REF NUM</th>
                                              <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Date Open (DOF)</th>
-                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Date Close</th>
-                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Duration (Days)</th>
+                                             <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
                                          </tr>
                                      </thead>
                                      <tbody id="file-history-body"></tbody>
@@ -155,12 +198,23 @@
         </main>
     </div>
 
+    <!-- File List Modal -->
+    <div id="file-list-modal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+        <div id="file-list-content" class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <!-- Modal content will be dynamically inserted here -->
+        </div>
+    </div>
+
     <script>
         // --- CONFIG & GLOBAL STORE ---
-        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQhVOvcKbqZZuAuYE-FgLykZX5PRpeTMgJ1SpAAKAcZRRTb8Bt8cPOSQXj0EWL6iC7eQRofXmggke-T/pub?gid=0&single=true&output=csv';
+        const GOOGLE_APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBhzsMQgZ-O1Qt83QxC8tc_JnKkvVdE3xoWIajelf8PmZMIgehbiNbqedI9NpJLwc1EQ/exec';
         let allFilesData = [];
         let leaderboardChartInstance = null;
         let trendChartInstance = null;
+        let pieChartInstances = [];
+
+        // Register the datalabels plugin globally
+        Chart.register(ChartDataLabels);
 
         // --- DOM ELEMENTS ---
         const navOverall = document.getElementById('nav-overall');
@@ -169,6 +223,10 @@
         const pageIndividual = document.getElementById('page-individual');
         const picSelect = document.getElementById('pic-select');
         const timeRangeSelector = document.getElementById('time-range-selector');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const lastUpdatedEl = document.getElementById('last-updated');
+        const fileListModal = document.getElementById('file-list-modal');
+        const fileListContent = document.getElementById('file-list-content');
         
         // --- HELPER FUNCTIONS ---
         function getVal(row, keys) {
@@ -180,6 +238,7 @@
 
         function parseDate(dateStr) {
             if (!dateStr || typeof dateStr !== 'string') return null;
+            if (dateStr.includes('T')) return new Date(dateStr);
             let parts = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
             if (parts) {
                 const day = parseInt(parts[1], 10);
@@ -193,22 +252,12 @@
             return null;
         }
 
-        function dateDiffInDays(date1, date2) {
-            if (!date1 || !date2) return null;
-            const _MS_PER_DAY = 1000 * 60 * 60 * 24;
-            const utc1 = Date.UTC(date1.getFullYear(), date1.getMonth(), date1.getDate());
-            const utc2 = Date.UTC(date2.getFullYear(), date2.getMonth(), date2.getDate());
-            return Math.floor((utc2 - utc1) / _MS_PER_DAY);
-        }
-
         // --- NAVIGATION LOGIC ---
         function showPage(pageName) {
             pageOverall.style.display = pageName === 'overall' ? 'block' : 'none';
             pageIndividual.style.display = pageName === 'individual' ? 'block' : 'none';
-            
             const navActiveClasses = ['bg-indigo-600', 'text-white', 'shadow'];
             const navInactiveClasses = ['bg-transparent', 'text-gray-600', 'hover:bg-gray-200'];
-
             if (pageName === 'overall') {
                 navOverall.classList.add(...navActiveClasses);
                 navOverall.classList.remove(...navInactiveClasses);
@@ -225,16 +274,39 @@
         // --- DATA PROCESSING & RENDERING ---
         function processAndRenderData(rawData) {
             const excludedPICs = ['SPA QHomes', 'Loan QHomes', 'Loan'];
-            allFilesData = rawData
-                .map(row => ({
+            const closedStages = ['close'];
+            const kivStages = ['kiv'];
+            const cancelStages = ['cancel'];
+
+            allFilesData = rawData.map(row => {
+                const stage = (getVal(row, ['STAGES']) || '').toLowerCase().trim();
+                const refNum = getVal(row, ['REF NUM']);
+                let year = 'Unknown';
+                if (refNum) {
+                    const matches = refNum.match(/(\d{2})-(\d{2})/g);
+                    if (matches) {
+                        const lastMatch = matches[matches.length - 1];
+                        const yearPart = lastMatch.split('-')[1];
+                        year = `20${yearPart}`;
+                    }
+                }
+                const isClosed = closedStages.includes(stage);
+                const isKiv = kivStages.includes(stage);
+                const isCanceled = cancelStages.includes(stage);
+
+                return {
                     pic: getVal(row, ['PIC']),
-                    refNum: getVal(row, ['REF NUM']),
+                    refNum: refNum,
                     dof: parseDate(getVal(row, ['DOF'])),
                     dateClose: parseDate(getVal(row, ['DATE CLOSE'])),
-                    duration: dateDiffInDays(parseDate(getVal(row, ['DOF'])), parseDate(getVal(row, ['DATE CLOSE']))),
-                    stage: getVal(row, ['STAGES'])
-                }))
-                .filter(file => file.pic && !excludedPICs.includes(file.pic));
+                    stage: getVal(row, ['STAGES']),
+                    year: year,
+                    isClosed: isClosed,
+                    isKiv: isKiv,
+                    isCanceled: isCanceled,
+                    isActive: !isClosed && !isKiv && !isCanceled
+                };
+            }).filter(file => file.pic && !excludedPICs.includes(file.pic) && file.year !== 'Unknown');
             
             renderOverallDashboard();
             renderIndividualPage();
@@ -248,7 +320,6 @@
         function updateTrendChart(monthsToShow) {
             const startDate = new Date();
             startDate.setMonth(startDate.getMonth() - monthsToShow);
-            
             const monthlyData = allFilesData.reduce((acc, file) => {
                 const processEvent = (date, type) => {
                     if (date && date >= startDate) {
@@ -258,16 +329,13 @@
                     }
                 };
                 processEvent(file.dof, 'opened');
-                processEvent(file.dateClose, 'closed');
+                if (file.isClosed) processEvent(file.dateClose, 'closed');
                 return acc;
             }, {});
-
             const sortedMonthlyData = Object.values(monthlyData).sort((a,b) => a.date - b.date);
-            
             const trendLabels = sortedMonthlyData.map(d => d.date.toLocaleString('default', { month: 'short', year: '2-digit'}));
             const openedData = sortedMonthlyData.map(d => d.opened);
             const closedData = sortedMonthlyData.map(d => d.closed);
-
             const trendCtx = document.getElementById('trend-chart').getContext('2d');
             if (trendChartInstance) trendChartInstance.destroy();
             trendChartInstance = new Chart(trendCtx, {
@@ -275,36 +343,105 @@
                 data: {
                     labels: trendLabels,
                     datasets: [{
-                        label: 'Files Opened',
-                        data: openedData,
-                        borderColor: 'rgba(79, 70, 229, 1)',
-                        tension: 0.1
+                        label: 'Files Opened', data: openedData, borderColor: 'rgba(79, 70, 229, 1)', tension: 0.1
                     }, {
-                        label: 'Files Closed',
-                        data: closedData,
-                        borderColor: 'rgba(34, 197, 94, 1)',
-                        tension: 0.1
+                        label: 'Files Closed', data: closedData, borderColor: 'rgba(34, 197, 94, 1)', tension: 0.1
                     }]
                 },
                 options: { responsive: true, scales: { y: { beginAtZero: true } } }
             });
         }
 
+        function renderPieCharts() {
+            pieChartInstances.forEach(chart => chart.destroy());
+            pieChartInstances = [];
+            const container = document.getElementById('pie-charts-container');
+            container.innerHTML = '';
+
+            const years = [...new Set(allFilesData.map(f => f.year))].sort().reverse();
+            
+            years.forEach(year => {
+                const filesForYear = allFilesData.filter(f => f.year === year);
+                const activeCount = filesForYear.filter(f => f.isActive).length;
+                const nonActiveCount = filesForYear.length - activeCount;
+
+                if (filesForYear.length > 0) {
+                    const chartWrapper = document.createElement('div');
+                    chartWrapper.className = 'flex flex-col items-center';
+                    
+                    const title = document.createElement('h4');
+                    title.className = 'text-md font-semibold text-gray-700 mb-2';
+                    title.textContent = `File Status (${year})`;
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `pie-chart-${year}`;
+                    
+                    chartWrapper.appendChild(title);
+                    chartWrapper.appendChild(canvas);
+                    container.appendChild(chartWrapper);
+
+                    const ctx = canvas.getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Active', 'Non-Active'],
+                            datasets: [{
+                                data: [activeCount, nonActiveCount],
+                                backgroundColor: ['rgba(79, 70, 229, 0.8)', 'rgba(209, 213, 219, 0.8)'],
+                                borderColor: ['#ffffff'],
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                datalabels: {
+                                    formatter: (value, ctx) => {
+                                        if (value === 0) return null; // Hide label if value is 0
+                                        const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                        const percentage = (value / total * 100).toFixed(1) + '%';
+                                        return percentage;
+                                    },
+                                    color: '#fff',
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    pieChartInstances.push(chart);
+                }
+            });
+        }
+
         function renderOverallDashboard() {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const activeFiles = allFilesData.filter(file => file.isActive);
+            const totalClosedFiles = allFilesData.filter(file => file.isClosed);
+            const totalKivFiles = allFilesData.filter(file => file.isKiv);
+            const totalCanceledFiles = allFilesData.filter(file => file.isCanceled);
 
-            const activeFiles = allFilesData.filter(file => !file.dateClose);
-            const closedLast30Days = allFilesData.filter(file => file.dateClose && file.dateClose > thirtyDaysAgo);
-            const totalClosedFiles = allFilesData.filter(file => file.dateClose); // All closed files
-            const closedFilesWithDuration = allFilesData.filter(file => file.duration !== null && file.duration >= 0);
-            const totalDuration = closedFilesWithDuration.reduce((sum, file) => sum + file.duration, 0);
-            const avgCloseTime = closedFilesWithDuration.length > 0 ? (totalDuration / closedFilesWithDuration.length).toFixed(1) : 0;
+            const activeByYear = activeFiles.reduce((acc, file) => {
+                acc[file.year] = (acc[file.year] || 0) + 1;
+                return acc;
+            }, {});
+            const yearContainer = document.getElementById('active-files-by-year-container');
+            yearContainer.innerHTML = '';
+            Object.keys(activeByYear).sort().reverse().forEach(year => {
+                const card = document.createElement('div');
+                card.className = 'kpi-card cursor-pointer';
+                card.dataset.filterType = 'active';
+                card.dataset.filterValue = year;
+                card.innerHTML = `<span class="kpi-value pointer-events-none">${activeByYear[year]}</span><span class="kpi-label pointer-events-none">Active Files (${year})</span>`;
+                yearContainer.appendChild(card);
+            });
 
-            document.getElementById('kpi-active-files').textContent = activeFiles.length;
-            document.getElementById('kpi-closed-30-days').textContent = closedLast30Days.length;
             document.getElementById('kpi-total-closed').textContent = totalClosedFiles.length;
-            document.getElementById('kpi-avg-close-time').textContent = avgCloseTime;
+            document.getElementById('kpi-total-kiv').textContent = totalKivFiles.length;
+            document.getElementById('kpi-total-canceled').textContent = totalCanceledFiles.length;
 
             const picCounts = activeFiles.reduce((acc, file) => {
                 acc[file.pic] = (acc[file.pic] || 0) + 1;
@@ -319,14 +456,27 @@
                     labels: sortedPics.map(p => p[0]),
                     datasets: [{ label: 'Active Files', data: sortedPics.map(p => p[1]), backgroundColor: 'rgba(79, 70, 229, 0.8)' }]
                 },
-                options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } } }
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    scales: { x: { beginAtZero: true } },
+                    plugins: {
+                        datalabels: {
+                            display: false // Hide labels on the bar chart
+                        }
+                    }
+                }
             });
             
-            updateTrendChart(6); // Default to 6 months
+            const activeTimeButton = timeRangeSelector.querySelector('.bg-indigo-600');
+            const months = activeTimeButton ? parseInt(activeTimeButton.dataset.months, 10) : 6;
+            updateTrendChart(months);
+            renderPieCharts();
         }
 
         function renderIndividualPage() {
             const pics = [...new Set(allFilesData.map(file => file.pic))].sort();
+            const selectedValue = picSelect.value;
             picSelect.innerHTML = '<option value="">-- Select a PIC --</option>';
             pics.forEach(pic => {
                 const option = document.createElement('option');
@@ -334,6 +484,10 @@
                 option.textContent = pic;
                 picSelect.appendChild(option);
             });
+            picSelect.value = selectedValue;
+            if(selectedValue) {
+                renderIndividualDetails(selectedValue);
+            }
         }
 
         function renderIndividualDetails(selectedPic) {
@@ -341,25 +495,90 @@
             if (!selectedPic) return;
 
             const picFiles = allFilesData.filter(file => file.pic === selectedPic);
-            const activeFiles = picFiles.filter(file => !file.dateClose);
-            const closedFiles = picFiles.filter(file => file.duration !== null && file.duration >= 0);
-            const totalDuration = closedFiles.reduce((sum, file) => sum + file.duration, 0);
-            const avgCloseTime = closedFiles.length > 0 ? (totalDuration / closedFiles.length).toFixed(1) : 0;
+            const activeFiles = picFiles.filter(file => file.isActive);
+            const closedFiles = picFiles.filter(file => file.isClosed);
+            const kivFiles = picFiles.filter(file => file.isKiv);
+            const canceledFiles = picFiles.filter(file => file.isCanceled);
             
             document.getElementById('ind-kpi-active-files').textContent = activeFiles.length;
-            document.getElementById('ind-kpi-avg-close-time').textContent = avgCloseTime;
             document.getElementById('ind-kpi-total-closed').textContent = closedFiles.length;
+            document.getElementById('ind-kpi-total-kiv').textContent = kivFiles.length;
+            document.getElementById('ind-kpi-total-canceled').textContent = canceledFiles.length;
 
             document.getElementById('file-history-body').innerHTML = picFiles
                 .sort((a,b) => (b.dof || 0) - (a.dof || 0))
-                .map(file => `
-                <tr class="border-b">
-                    <td class="py-2 px-4 text-sm font-medium text-gray-800">${file.refNum || 'N/A'}</td>
-                    <td class="py-2 px-4 text-sm text-gray-600">${file.dof ? file.dof.toLocaleDateString() : 'N/A'}</td>
-                    <td class="py-2 px-4 text-sm text-gray-600">${file.dateClose ? file.dateClose.toLocaleDateString() : 'Active'}</td>
-                    <td class="py-2 px-4 text-sm font-bold text-indigo-600">${file.duration !== null ? file.duration : '--'}</td>
-                </tr>
-            `).join('');
+                .map(file => {
+                    let stageClass = 'text-gray-600';
+                    if (file.isClosed) stageClass = 'text-green-600';
+                    if (file.isKiv) stageClass = 'text-yellow-600';
+                    if (file.isCanceled) stageClass = 'text-red-600';
+
+                    return `
+                    <tr class="border-b">
+                        <td class="py-2 px-4 text-sm font-medium text-gray-800">${file.refNum || 'N/A'}</td>
+                        <td class="py-2 px-4 text-sm text-gray-600">${file.dof ? file.dof.toLocaleDateString() : 'N/A'}</td>
+                        <td class="py-2 px-4 text-sm font-semibold ${stageClass}">${file.stage || 'N/A'}</td>
+                    </tr>
+                `}).join('');
+        }
+        
+        function renderFileListModal(title, files) {
+            const fileRows = files.map(file => {
+                return `
+                    <tr class="border-b">
+                        <td class="py-2 px-4 text-sm font-medium text-gray-800">${file.refNum || 'N/A'}</td>
+                        <td class="py-2 px-4 text-sm text-gray-600">${file.pic || 'N/A'}</td>
+                        <td class="py-2 px-4 text-sm text-gray-600">${file.dof ? file.dof.toLocaleDateString() : 'N/A'}</td>
+                        <td class="py-2 px-4 text-sm font-semibold text-gray-700">${file.stage || 'N/A'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            fileListContent.innerHTML = `
+                <div class="p-6 border-b border-gray-200">
+                     <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">${title} (${files.length} files)</h2>
+                        <button id="close-file-list-modal" class="text-gray-400 hover:text-gray-600 text-4xl leading-none">&times;</button>
+                    </div>
+                </div>
+                <div class="p-6 overflow-y-auto">
+                    <div class="rounded-lg border">
+                         <table class="min-w-full">
+                             <thead>
+                                 <tr>
+                                     <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">REF NUM</th>
+                                     <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">PIC</th>
+                                     <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Date Open (DOF)</th>
+                                     <th class="py-2 px-4 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
+                                 </tr>
+                             </thead>
+                             <tbody class="bg-white">${fileRows}</tbody>
+                         </table>
+                    </div>
+                </div>
+            `;
+            fileListModal.classList.add('active');
+            document.getElementById('close-file-list-modal').addEventListener('click', () => fileListModal.classList.remove('active'));
+        }
+
+        // --- DATA FETCHING & AUTO-REFRESH ---
+        async function loadAndProcessData() {
+            refreshBtn.classList.add('refresh-pulse');
+            refreshBtn.disabled = true;
+            try {
+                const response = await fetch(GOOGLE_APP_SCRIPT_URL);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                processAndRenderData(data);
+                lastUpdatedEl.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+            } catch (error) {
+                document.getElementById('overall-loader').textContent = "Error: Could not fetch or process data.";
+                document.getElementById('individual-loader').textContent = "Error: Could not fetch or process data.";
+                console.error("Fetch Error:", error);
+            } finally {
+                refreshBtn.classList.remove('refresh-pulse');
+                refreshBtn.disabled = false;
+            }
         }
 
         // --- INITIALIZATION ---
@@ -367,45 +586,59 @@
             navOverall.addEventListener('click', () => showPage('overall'));
             navIndividual.addEventListener('click', () => showPage('individual'));
             picSelect.addEventListener('change', (e) => renderIndividualDetails(e.target.value));
+            refreshBtn.addEventListener('click', loadAndProcessData);
             
             timeRangeSelector.addEventListener('click', (e) => {
                 const clickedButton = e.target.closest('button');
                 if(clickedButton) {
                     const activeClasses = ['bg-indigo-600', 'text-white', 'shadow'];
                     const inactiveClasses = ['bg-gray-200', 'text-gray-700', 'hover:bg-gray-300'];
-                    
                     timeRangeSelector.querySelectorAll('button').forEach(btn => {
                         btn.classList.remove(...activeClasses);
                         btn.classList.add(...inactiveClasses);
                     });
-
                     clickedButton.classList.add(...activeClasses);
                     clickedButton.classList.remove(...inactiveClasses);
-                    
                     const months = parseInt(clickedButton.dataset.months, 10);
                     updateTrendChart(months);
                 }
             });
 
-            Papa.parse(GOOGLE_SHEET_URL, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors.length > 0 || results.data.length === 0) {
-                       document.getElementById('overall-loader').textContent = "Error: Could not read data from Google Sheet.";
-                       document.getElementById('individual-loader').textContent = "Error: Could not read data from Google Sheet.";
-                       console.error("CSV Parsing Errors:", results.errors);
-                       return;
-                    }
-                    processAndRenderData(results.data);
-                },
-                error: function(err) {
-                     document.getElementById('overall-loader').textContent = "Error: Could not fetch data from URL.";
-                     document.getElementById('individual-loader').textContent = "Error: Could not fetch data from URL.";
-                    console.error("Fetch Error:", err);
+            document.getElementById('overall-content').addEventListener('click', (e) => {
+                const card = e.target.closest('.kpi-card[data-filter-type]');
+                if (!card) return;
+
+                const filterType = card.dataset.filterType;
+                const filterValue = card.dataset.filterValue; // This will be the year for 'active'
+                const title = card.querySelector('.kpi-label').textContent;
+
+                let filteredFiles = [];
+                if (filterType === 'active') {
+                    filteredFiles = allFilesData.filter(f => f.isActive && f.year === filterValue);
+                } else if (filterType === 'closed') {
+                    filteredFiles = allFilesData.filter(f => f.isClosed);
+                } else if (filterType === 'kiv') {
+                    filteredFiles = allFilesData.filter(f => f.isKiv);
+                } else if (filterType === 'canceled') {
+                    filteredFiles = allFilesData.filter(f => f.isCanceled);
+                }
+                
+                renderFileListModal(`Details for ${title}`, filteredFiles);
+            });
+
+            fileListModal.addEventListener('click', (e) => {
+                if (e.target === fileListModal) {
+                    fileListModal.classList.remove('active');
                 }
             });
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && fileListModal.classList.contains('active')) {
+                    fileListModal.classList.remove('active');
+                }
+            });
+
+            loadAndProcessData();
+            setInterval(loadAndProcessData, 600000);
         });
     </script>
 </body>
